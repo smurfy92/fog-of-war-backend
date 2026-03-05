@@ -1,50 +1,43 @@
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Injectable, Inject } from '@nestjs/common';
 import { Location } from './location.entity';
 import { CreateLocationDto } from './dto/create-location.dto';
+import { ILocationsRepository, LOCATIONS_REPOSITORY } from './repositories/locations.repository.interface';
 
 @Injectable()
 export class LocationsService {
   constructor(
-    @InjectRepository(Location)
-    private readonly locationsRepo: Repository<Location>,
+    @Inject(LOCATIONS_REPOSITORY)
+    private readonly locationsRepository: ILocationsRepository,
   ) {}
 
-  async addOne(userId: string, dto: CreateLocationDto): Promise<Location> {
-    const location = this.locationsRepo.create({
-      user: { id: userId },
+  addOne(userId: string, dto: CreateLocationDto): Promise<Location> {
+    return this.locationsRepository.save({
+      userId,
       latitude: dto.latitude,
       longitude: dto.longitude,
       accuracy: dto.accuracy,
       visitedAt: dto.visitedAt,
     });
-    return this.locationsRepo.save(location);
   }
 
   async addBulk(userId: string, dtos: CreateLocationDto[]): Promise<{ count: number }> {
-    const locations = dtos.map((dto) =>
-      this.locationsRepo.create({
-        user: { id: userId },
+    const saved = await this.locationsRepository.saveMany(
+      dtos.map((dto) => ({
+        userId,
         latitude: dto.latitude,
         longitude: dto.longitude,
         accuracy: dto.accuracy,
         visitedAt: dto.visitedAt,
-      }),
+      })),
     );
-    await this.locationsRepo.save(locations);
-    return { count: locations.length };
+    return { count: saved.length };
   }
 
-  async findAllForUser(userId: string): Promise<Location[]> {
-    return this.locationsRepo.find({
-      where: { user: { id: userId } },
-      order: { visitedAt: 'ASC' },
-      select: ['id', 'latitude', 'longitude', 'accuracy', 'visitedAt', 'createdAt'],
-    });
+  findAllForUser(userId: string): Promise<Location[]> {
+    return this.locationsRepository.findAllForUser(userId);
   }
 
-  async deleteAllForUser(userId: string): Promise<void> {
-    await this.locationsRepo.delete({ user: { id: userId } });
+  deleteAllForUser(userId: string): Promise<void> {
+    return this.locationsRepository.deleteAllForUser(userId);
   }
 }
