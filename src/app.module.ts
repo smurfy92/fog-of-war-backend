@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
@@ -16,11 +18,28 @@ import { Location } from './locations/location.entity';
       password: process.env.DATABASE_PASSWORD ?? 'postgres',
       database: process.env.DATABASE_NAME ?? 'fog_of_war',
       entities: [User, Location],
-      synchronize: true, // set to false in production
+      // NEVER enable in production: schema auto-sync can cause data loss.
+      // Defaults to false. Opt-in for local dev only via DB_SYNC=true.
+      // In production, manage the schema with TypeORM migrations instead.
+      synchronize: process.env.DB_SYNC === 'true',
     }),
+    // Global rate limiting: 100 requests / 60s per IP by default.
+    // Sensitive auth routes are throttled more aggressively at the controller.
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60_000,
+        limit: 100,
+      },
+    ]),
     UsersModule,
     AuthModule,
     LocationsModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
   ],
 })
 export class AppModule {}

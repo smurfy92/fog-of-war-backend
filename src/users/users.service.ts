@@ -13,17 +13,23 @@ export class UsersService {
   ) {}
 
   async create(email: string, password: string): Promise<User> {
-    const existing = await this.usersRepository.findByEmail(email);
+    const normalizedEmail = UsersService.normalizeEmail(email);
+    const existing = await this.usersRepository.findByEmail(normalizedEmail);
     if (existing) {
       throw new ConflictException('Email already in use');
     }
 
     const hashedPassword = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
-    return this.usersRepository.create({ email, password: hashedPassword });
+    return this.usersRepository.create({ email: normalizedEmail, password: hashedPassword });
   }
 
   findByEmail(email: string): Promise<User | null> {
-    return this.usersRepository.findByEmail(email);
+    return this.usersRepository.findByEmail(UsersService.normalizeEmail(email));
+  }
+
+  /** Normalize emails so lookups and uniqueness are case/whitespace-insensitive. */
+  static normalizeEmail(email: string): string {
+    return email.trim().toLowerCase();
   }
 
   findById(id: string): Promise<User | null> {
